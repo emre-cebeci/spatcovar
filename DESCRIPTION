@@ -1,0 +1,37 @@
+Package: spatcovar
+Title: Construct Spatial Covariates from Polygon Data
+Version: 0.1.0
+Authors@R: 
+    person(
+      "Emre",
+      "Cebeci",
+      email = "cebeciemre1@gmail.com",
+      role = c("aut", "cre")
+    )
+Description: 
+    Provides a consistent interface for constructing commonly used spatial
+    covariates from polygon data. Computes polygon areas, distances to
+    reference features, point and line intersection counts, line lengths
+    within polygons, polygon overlap areas and shares, and raster zonal
+    summaries. Handles coordinate reference system validation, geometry
+    repair, unit conversion, row preservation, and standardised missing
+    value semantics while relying on established spatial libraries for
+    the underlying geometry operations.
+License: MIT + file LICENSE
+URL: https://github.com/emre-cebeci/spatcovar
+BugReports: https://github.com/emre-cebeci/spatcovar/issues
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Imports: 
+    exactextractr (>= 0.9.0),
+    sf (>= 1.0.0),
+    terra,
+    units
+Suggests: 
+    covr,
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0)
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.1.0

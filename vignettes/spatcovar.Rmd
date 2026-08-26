@@ -1,0 +1,182 @@
+---
+title: "Constructing Spatial Covariates with spatcovar"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Constructing Spatial Covariates with spatcovar}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 4.5
+)
+```
+
+## Introduction
+
+In applied spatial research, researchers frequently start with polygon units (districts, municipalities, administrative boundaries, grid cells, or ecological zones) and need to attach spatial features derived from other geospatial layers:
+
+- Polygon geometric area
+- Distances to central places, coastlines, or infrastructure
+- Point counts (e.g., facilities, events, schools)
+- Linework lengths within each polygon (e.g., roads, rivers, borders)
+- Overlap area or coverage share with other polygon layers
+- Zonal summary statistics from raster grids (e.g., elevation, climate, population density)
+
+While packages such as `sf`, `terra`, and `exactextractr` provide the low-level spatial primitives for these operations, combining them across multiple layers often requires substantial boilerplate code to manage coordinate reference systems, geometric validation, units, missing-value semantics, and row preservation.
+
+`spatcovar` provides a consistent, pipeable interface for constructing these spatial covariates directly on `sf` polygon data frames.
+
+## Synthetic Example Data
+
+`spatcovar` provides lightweight synthetic fixtures in projected coordinates (EPSG:32632, UTM Zone 32N) so you can explore all operations without external data dependencies:
+
+```{r example-data}
+library(spatcovar)
+
+regions <- example_polygons()
+sites   <- example_points()
+routes  <- example_lines()
+zones   <- example_grid()
+rst     <- example_raster()
+
+# Inspect the target polygon layer
+regions
+```
+
+## Core Covariate Pipeline
+
+All `spatcovar` functions take the target `sf` polygons as the first argument, calculate the requested metric, and append the result as a new column while strictly preserving the original row count, row order, and geometry.
+
+When `name = NULL` (the default), output column names are generated dynamically from the requested unit or measure (e.g., `area_km2`, `dist_km`, `length_km`, `overlap_share`).
+
+```{r pipeline}
+covariates <- regions |>
+  spat_area(unit = "km2") |>
+  spat_count(sites, name = "n_sites") |>
+  spat_length(routes, unit = "km") |>
+  spat_distance(sites, method = "minimum", unit = "km") |>
+  spat_overlap(zones, measure = "share") |>
+  spat_raster(rst, stats = c("mean", "max"), name = "elevation")
+
+# View the constructed covariate table
+sf::st_drop_geometry(covariates)
+```
+
+## Methodological Details & Semantics
+
+### 1. Polygon Area (`spat_area`)
+
+`spat_area()` calculates the area of each polygon. When input polygons use a geographic coordinate reference system (longitude/latitude, e.g. WGS84), `spat_area()` calculates geodesic areas on the sphere/ellipsoid using `sf` (via `s2`). For projected coordinate systems, planar area is calculated.
+
+Supported units include `"m2"`, `"km2"`, `"ha"`, and `"mi2"`.
+
+```{r area-units}
+regions |>
+  spat_area(unit = "ha") |>
+  subset(select = c(name, area_ha))
+```
+
+### 2. Distance to Reference Features (`spat_distance`)
+
+`spat_distance()` calculates the distance from each target polygon to reference features. Three measurement methods are supported:
+
+- `"minimum"` (default): Shortest geometry-to-geometry distance between the polygon boundary/interior and the nearest feature in `y`.
+- `"centroid"`: Euclidean or geodesic distance from the target polygon centroid to the nearest feature in `y`.
+- `"point_on_surface"`: Distance from a point guaranteed to lie inside the polygon (useful for irregular or concave polygons where the centroid may fall outside).
+
+For multi-feature reference layers, `spat_distance()` uses spatial indexing (`sf::st_nearest_feature()`) to locate nearest candidate features efficiently without calculating the full $N \times M$ distance matrix.
+
+```{r distance-methods}
+regions |>
+  spat_distance(sites, method = "minimum", unit = "km") |>
+  spat_distance(sites, method = "centroid", unit = "km", name = "dist_cent_km") |>
+  subset(select = c(name, dist_km, dist_cent_km))
+```
+
+### 3. Intersecting Feature Counts (`spat_count`)
+
+`spat_count()` counts the number of source features that spatially intersect each polygon.
+
+Key semantics:
+- Features touching the polygon boundary are counted.
+- A `MULTIPOINT`, `MULTILINESTRING`, or `MULTIPOLYGON` record represents one source feature. To count individual constituent points, use `sf::st_cast(sites, "POINT")` before passing to `spat_count()`.
+- Polygons with no intersecting features receive an explicit count of `0L`.
+
+```{r count-semantics}
+regions |>
+  spat_count(sites, name = "site_count") |>
+  subset(select = c(name, site_count))
+```
+
+### 4. Linework Length inside Polygons (`spat_length`)
+
+`spat_length()` clips line features to each polygon boundary and sums the total length of the intersecting segments. It explicitly accounts for the native linear units of the projected CRS (e.g. feet vs. metres).
+
+**CRS Requirement**: `spat_length()` requires a projected (planar) coordinate reference system. If your data uses geographic coordinates (degrees), supply a projected CRS via `crs = ...`:
+
+```{r length-example}
+regions |>
+  spat_length(routes, unit = "km") |>
+  subset(select = c(name, length_km))
+```
+
+### 5. Polygon Overlap Measures (`spat_overlap`)
+
+`spat_overlap()` calculates relationships between target polygons and another polygon layer `y`:
+
+- `measure = "area"`: Total area of intersection in the requested unit (`"m2"`, `"km2"`, `"ha"`, `"mi2"`).
+- `measure = "share"`: Fraction of the target polygon's area covered by source polygons. The share is typically between 0.0 and 1.0 when source polygons form a non-overlapping coverage, but may exceed 1.0 when source polygons overlap one another with positive area.
+- `measure = "count"`: Number of source polygons intersecting the target polygon.
+
+When source polygons in `y` have positive-area duplicate coverage among themselves, `spat_overlap(..., measure = "share")` issues an informative warning that the sum of overlapping parts may exceed $1.0$. Source polygons that merely touch along edges or at vertices do not trigger the warning.
+
+```{r overlap-example}
+regions |>
+  spat_overlap(zones, measure = "area", unit = "km2") |>
+  spat_overlap(zones, measure = "share") |>
+  subset(select = c(name, overlap_km2, overlap_share))
+```
+
+### 6. Raster Zonal Statistics (`spat_raster`)
+
+`spat_raster()` computes zonal statistics across single-layer raster grids using the exact coverage-fraction weighting engine provided by `exactextractr`.
+
+Key properties:
+- Supported statistics: `"mean"`, `"median"`, `"min"`, `"max"`, `"sum"`, `"count"`, `"stdev"`.
+- `mean`, `sum`, `median`, and `stdev` are weighted by the fraction of each cell covered by the polygon.
+- `min` and `max` are unweighted extrema over intersected cells.
+- `count` is the sum of coverage fractions of cells with non-NA values (effective covered cells) and can be fractional.
+- Valid zero values in the raster are preserved as valid observed data.
+- If a target polygon has no valid non-NA raster cells contributing to the extraction (outside raster extent or all covered cells are `NA`), all requested statistics evaluate to `NA`.
+- If the polygon CRS and raster CRS differ, polygon copies are automatically reprojected to the raster's CRS during extraction.
+
+```{r raster-example}
+regions |>
+  spat_raster(rst, stats = c("mean", "median", "min", "max"), name = "topo") |>
+  subset(select = c(name, topo_mean, topo_median, topo_min, topo_max))
+```
+
+## Operation Diagnostics (`spat_diagnostics`)
+
+Every `spat_*` function accepts `diagnostics = TRUE`. When enabled, lightweight metadata describing the operation is stored in the `spat_diagnostics` attribute:
+
+```{r diagnostics}
+result <- regions |>
+  spat_distance(sites, unit = "km", diagnostics = TRUE)
+
+spat_diagnostics(result)
+```
+
+## Summary of Guarantees
+
+1. **Row Preservation**: The output always has identical row count and row order as the input target polygons.
+2. **Original Geometry**: Returned geometries remain identical to the input geometries even when internal geometry repair was necessary.
+3. **Collision Safety**: Overwriting existing columns requires `overwrite = TRUE`.
+4. **Predictable Types**: Counts return integers; metric quantities return standard base numerics in explicit units.
+5. **Safe Missing-CRS Policy**: Operations that require knowing coordinate meaning or units error explicitly when CRS information is missing.
+6. **Standardised Missing-Data Semantics**: Zero-support raster extractions evaluate to `NA` across all requested statistics.

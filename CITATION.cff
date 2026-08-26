@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "spatcovar: Construct Spatial Covariates from Polygon Data"
+type: software
+authors:
+  - family-names: Cebeci
+    given-names: Emre
+abstract: >-
+  Provides a consistent interface for constructing commonly used spatial
+  covariates from polygon data.
+version: 0.1.0
+license: MIT
+repository-code: "https://github.com/emre-cebeci/spatcovar"
