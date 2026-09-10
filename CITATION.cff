@@ -9,5 +9,6 @@ abstract: >-
   Provides a consistent interface for constructing commonly used spatial
   covariates from polygon data.
 version: 0.1.0
+doi: "10.32614/CRAN.package.spatcovar"
 license: MIT
 repository-code: "https://github.com/emre-cebeci/spatcovar"

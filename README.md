@@ -1,6 +1,7 @@
 # spatcovar
 
 <!-- badges: start -->
+[![CRAN version](https://img.shields.io/cran/v/spatcovar)](https://CRAN.R-project.org/package=spatcovar)
 [![R-CMD-check](https://github.com/emre-cebeci/spatcovar/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/emre-cebeci/spatcovar/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
@@ -19,7 +20,13 @@ rather than reimplementing the underlying geometry operations.
 
 ## Installation
 
-Install the development version from GitHub:
+Install the released version from CRAN:
+
+```r
+install.packages("spatcovar")
+```
+
+Alternatively, install the development version from GitHub:
 
 ```r
 # install.packages("pak")
@@ -86,6 +93,28 @@ from polygon data. It does not provide general GIS manipulation, mapping,
 geocoding, boundary harmonization, persistent spatial identifiers, areal
 interpolation methodology, raster processing pipelines, or causal inference
 tools.
+
+## Citation
+
+If you use `spatcovar` in your research, please cite:
+
+> Cebeci E (2026). *spatcovar: Construct Spatial Covariates from Polygon Data*.
+> R package version 0.1.0.
+> [doi:10.32614/CRAN.package.spatcovar](https://doi.org/10.32614/CRAN.package.spatcovar).
+
+To retrieve the citation for your installed version, run:
+
+```r
+citation("spatcovar")
+```
+
+## Related packages
+
+For polygon data observed over time,
+[`spatpersist`](https://CRAN.R-project.org/package=spatpersist) creates
+persistent identifiers and tracks lineages across boundary changes.
+`spatcovar` can then append spatial covariates to those polygon observations.
+The packages can also be used independently; neither requires the other.
 
 ## License
 
