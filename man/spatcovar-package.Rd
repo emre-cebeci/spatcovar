@@ -13,18 +13,43 @@ polygon overlap areas and shares, and raster zonal summaries while handling
 coordinate reference system validation, geometry repair, unit conversion,
 row preservation, and standardised missing value semantics.
 }
+\section{Start here}{
+
+Start with an \code{sf} object of target \code{POLYGON} or \code{MULTIPOLYGON} features
+with a known coordinate reference system (CRS). Each operation appends
+one or more numeric columns to those target rows; the original row order
+and target geometry are preserved. The package supplies small synthetic
+polygons, points, lines, and a raster, so the example below needs no files.
+}
+
 \section{Core functions}{
 
 \describe{
-\item{\code{\link[=spat_area]{spat_area()}}}{Compute polygon area with unit conversion.}
+\item{\code{\link[=spat_area]{spat_area()}}}{Compute each target polygon's area.}
 \item{\code{\link[=spat_distance]{spat_distance()}}}{Minimum, centroid, or point-on-surface distance
 to reference features.}
-\item{\code{\link[=spat_count]{spat_count()}}}{Count source features intersecting each polygon.}
+\item{\code{\link[=spat_count]{spat_count()}}}{Count source features intersecting each polygon,
+including boundary touches.}
 \item{\code{\link[=spat_length]{spat_length()}}}{Total length of line features within each polygon.}
 \item{\code{\link[=spat_overlap]{spat_overlap()}}}{Overlap area, share, or count between polygon
 layers.}
-\item{\code{\link[=spat_raster]{spat_raster()}}}{Zonal raster statistics for each polygon.}
+\item{\code{\link[=spat_raster]{spat_raster()}}}{Zonal statistics from one raster layer, including
+coverage-weighted mean, sum, and count.}
 }
+}
+
+\section{Interpret the new columns}{
+
+Area, distance, and line length can be requested in explicit units. By
+default, output names reflect the measure or unit (for example,
+\code{area_km2}, \code{dist_km}, or \code{overlap_share}); use \code{name} to choose your own.
+An existing column is never overwritten unless \code{overwrite = TRUE}.
+Counts of source features include features touching a polygon boundary.
+Overlap \code{"share"} sums source intersections relative to target area, so
+it can exceed 1 if source polygons overlap each other. Raster \code{"count"}
+is the effective number of covered, non-missing cells and can be
+fractional. Polygons with no valid raster cell support receive \code{NA} for
+all requested raster statistics; a valid raster value of zero remains zero.
 }
 
 \section{CRS handling}{
@@ -38,6 +63,7 @@ computation is desired.
 In contrast, \code{\link[=spat_length]{spat_length()}} strictly requires a projected (planar) CRS
 (either on the input data or supplied via \code{crs}) because planar coordinates
 are required for line clipping and length measurement.
+\code{\link[=spat_count]{spat_count()}} and \code{\link[=spat_raster]{spat_raster()}} align source and target CRS internally.
 }
 
 \section{Geometry repair}{
@@ -54,13 +80,31 @@ summary of the operation as an attribute.
 Retrieve it with \code{\link[=spat_diagnostics]{spat_diagnostics()}}.
 }
 
-\seealso{
-Useful links:
-\itemize{
-  \item \url{https://github.com/emre-cebeci/spatcovar}
-  \item Report bugs at \url{https://github.com/emre-cebeci/spatcovar/issues}
-}
+\examples{
+regions <- example_polygons()
+sites <- example_points()
+routes <- example_lines()
+zones <- example_grid()
+raster <- example_raster()
 
+# Add several covariates without changing the target geometry or row order.
+result <- spat_area(regions, unit = "km2")
+result <- spat_count(result, sites, name = "n_sites")
+result <- spat_length(result, routes, unit = "km")
+result <- spat_distance(result, sites, name = "dist_to_sites")
+result <- spat_overlap(result, zones, measure = "share")
+result <- spat_raster(result, raster, stats = c("mean", "max"), name = "elev")
+sf::st_drop_geometry(result)
+
+# Inspect diagnostics for a particular operation.
+measured <- spat_area(regions, diagnostics = TRUE)
+spat_diagnostics(measured)
+
+}
+\seealso{
+\code{\link[=spat_area]{spat_area()}}, \code{\link[=spat_distance]{spat_distance()}}, \code{\link[=spat_count]{spat_count()}},
+\code{\link[=spat_length]{spat_length()}}, \code{\link[=spat_overlap]{spat_overlap()}}, \code{\link[=spat_raster]{spat_raster()}},
+\code{\link[=spat_diagnostics]{spat_diagnostics()}}, \code{vignette("spatcovar", package = "spatcovar")}
 }
 \author{
 \strong{Maintainer}: Emre Cebeci \email{cebeciemre1@gmail.com}
